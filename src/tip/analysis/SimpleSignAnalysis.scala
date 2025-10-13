@@ -85,10 +85,18 @@ class SimpleSignAnalysis(cfg: ProgramCfg)(implicit declData: DeclarationData) ex
       case r: CfgStmtNode =>
         r.data match {
           // var declarations
-          case varr: AVarStmt => ??? //<--- Complete here
+          // case varr: AVarStmt => ??? //<--- Complete here
+          case varr: AVarStmt =>
+            val newVars = varr.declIds.map(_ -> valuelattice.bottom)
+            s ++ newVars
+
 
           // assignments
-          case AAssignStmt(id: AIdentifier, right, _) => ??? //<--- Complete here
+          // case AAssignStmt(id: AIdentifier, right, _) => ??? //<--- Complete here
+          case AAssignStmt(id: AIdentifier, right, _) =>
+            val newVal = eval(right, s)
+            val decl = declData(id)   // 🔹 用 DeclarationData 获取声明
+            s + (decl -> newVal)
 
           // all others: like no-ops
           case _ => s

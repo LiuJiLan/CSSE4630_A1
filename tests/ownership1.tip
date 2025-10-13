@@ -1,0 +1,12 @@
+// Test that ownership is transferred between vars, but only for heap vars (that contain alloc'ed values).
+main() {
+    var a, b, c, d, result;
+    a = input;
+    b = input;
+    c = alloc a;
+    d = c;  // pass ownership to d.
+    a = b;  // non-heap vars should not pass ownership
+    result = b;  // so it should be okay to read b.
+    return result;
+}
+

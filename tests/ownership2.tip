@@ -1,0 +1,11 @@
+// Test that variables cannot be read after they give away ownership
+main() {
+    var a, c, d, result;
+    a = input;
+    c = alloc a;
+    d = c;  // pass ownership to d.
+    result = *d;  // it should be okay to read d.
+    result = *c;  // but an error to read c.
+    return result;
+}
+

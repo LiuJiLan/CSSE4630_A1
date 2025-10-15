@@ -1,5 +1,3 @@
-package tip.lattices
-
 /**
  * Enumeration for ownership elements.
  * These represent the possible ownership statuses of variables.

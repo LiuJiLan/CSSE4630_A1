@@ -1,5 +1,3 @@
-package tip.analysis
-
 import tip.ast.AstNodeData.DeclarationData
 import tip.ast._
 import tip.cfg.CfgOps._

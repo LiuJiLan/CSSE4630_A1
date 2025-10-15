@@ -1,0 +1,58 @@
+AI Reflections
+
+1. Overview
+
+For this assignment, I only used GPT-5 Auto.
+I used it in several parts of my workflow: to understand the assignment requirements, to assist in writing and debugging code, and to help with translation and documentation.
+In particular, I relied on AI tools to interpret the ownership and borrow analysis rules, to generate initial Scala code from my pseudo-code descriptions, and to refine my comments into clear IntelliJ-style documentation.
+
+2. Helpful
+
+AI tools were especially helpful in a few key areas.
+
+First, they accelerated my understanding of the assignment’s structure and starting point. Initially, I was unsure whether I should base my work on SimpleSignAnalysis or SignAnalysis. Through multiple discussions with GPT-5, I realized that SimpleSignAnalysis was better suited for Part 3 and Part 4, while SignAnalysis would be more appropriate if I attempted Part 5. After weighing the cost–benefit with the AI’s help, I decided to focus on Part 3 and Part 4 only, which saved a significant amount of time.
+
+Second, AI helped me understand and implement subtle rule details—especially Rule 0 and the later revision of Rule 8b in the borrow analysis. The model helped me reason through the “before a variable x is assigned…” clause and how to correctly release borrows in code.
+
+Third, it lowered the barrier of using an unfamiliar programming language. I can generally read Scala, but I am not fluent in writing it. I often described logic in natural language or Python-like pseudocode, and GPT produced correct and idiomatic Scala equivalents. This was particularly efficient when implementing PairLattice and its operations such as join and leq.
+
+Fourth, it helped me formalize comments. I often wrote rough bilingual notes mixing Chinese and English, and GPT turned them into standard Scala doc-style comments, automatically adding the corresponding “Rule n:” headers before each rule implementation.
+
+Finally, on a personal level, AI made the early stages of the assignment emotionally easier. When I cannot directly ask instructors for clarification, AI serves as a responsive partner who can partially “understand my way of thinking.” This reduced frustration and kept me motivated. Although I still became irritated when it misunderstood, the overall learning process felt smoother and more engaging.
+
+3. Unhelpful
+
+AI tools were useless or even counterproductive in several situations.
+
+First, they tended to over-interpret the assignment hints or generate hallucinated content. For example, when I asked about Rule 8b, GPT invented scenarios involving &*y even though this rule had been explicitly removed in version 1.3b. Such over-explanations forced me to repeatedly verify everything against the official PDF.
+
+Second, the memory and persistence mechanism often caused interference. When I opened a new conversation just to review SimpleSignAnalysis, the model still tried to relate everything back to my assignment implementation, even after I explicitly asked it not to use prior memory. This made me restart chats multiple times.
+
+Third, once GPT-5 made a wrong assumption, it was stubbornly difficult to correct within the same session. Even after I demonstrated the error, it often insisted on its own reasoning. Compared with GPT-4, which used to admit uncertainty more often, GPT-5 felt much more “confident but wrong,” which slowed me down during fine-grained debugging.
+
+4. Overall productivity gain
+
+I estimate that AI tools improved my overall productivity by about 1.5×.
+If I had been using GPT-4, I might have rated it closer to 1.7×.
+
+In the early stages—understanding the document structure, rules, and code architecture—the gain was almost 2.0×. AI allowed me to progress from total confusion to partial understanding extremely quickly, helping me locate the right starting files and recognize the rule hierarchy before I even began coding. During this stage, one productive collaboration was when I discussed whether to implement the interprocedural version (Part 5). GPT analyzed the trade-offs between using SimpleSignAnalysis and SignAnalysis, explaining that the latter involved interprocedural CFGs and fixpoint solvers that were not required for my current goals. This reasoning helped me make a well-informed decision to focus on Part 3 and 4 instead of attempting all tasks simultaneously.
+
+However, during the later implementation and verification stages, GPT-5’s stubbornness and hallucinations slowed me down. I often spent extra time verifying or re-starting conversations. One specific example was in Part 4: the correct implementation should continue to use Rule 1 from Part 3 together with Rules 0–9 from Part 4. However, GPT insisted that I should only use Part 3’s Rule 1 together with Part 4’s Rule 0 and Rules 2–9, omitting Rule 1 from the combined logic. This confusion led to several failed test cases before I rechecked the PDF and corrected the logic myself.
+
+Another memorable case was when I compared my BorrowTest outputs against the Gradescope expectations. GPT helped me systematically reason why my implementation produced an extra “[OwnershipWarning]” message in borrow_prevents_move_error.tip. I initially suspected that I should buffer output messages in a stack structure to handle nested borrows, but GPT suggested a simpler and more precise approach: clearing previous messages once a borrow is released. Its reasoning was correct, and after implementing that fix, all tests passed. This experience demonstrated how AI can complement human intuition—turning an overcomplicated idea into a more elegant solution through structured reasoning.
+
+Overall, AI drastically shortened the “initial comprehension phase,” but occasionally hindered the “high-precision implementation phase.”
+
+I also noticed an interesting difference in interaction style. GPT-4’s responses often aligned with my own reasoning pace—it felt like it operated within my “comfort zone,” engaging in more cautious and reflective dialogue. GPT-5, in contrast, is faster and more assertive but sometimes too confident, which made me feel less in control of the reasoning process. This difference affected how productively I could collaborate with it.
+
+In summary, the AI tools were most valuable for cognitive acceleration and structural understanding rather than for the final implementation. They helped me start faster but could not replace my own careful reasoning. The overall average gain was about 1.5×, though it ranged from nearly 2.0× at best to around 1.0× when I had to counteract its mistakes.
+
+5. Reflections and future improvements
+
+From this experience, I learned that AI tools are excellent initiators but unreliable validators. They are ideal for grasping new concepts quickly, but detailed verification must still depend on my own reading and reasoning.
+
+Next time, I will limit the conversation context more aggressively—by starting fresh sessions more frequently and by explicitly instructing the model to admit uncertainty instead of guessing.
+
+I also found that bilingual (Chinese–English) prompting works surprisingly well, since it allows me to express my intent naturally while keeping the generated comments professional and idiomatic.
+
+Finally, I have adjusted my expectations. I no longer expect perfect answers from AI. Instead, I see it as an interactive learning partner that can speed up my understanding and reasoning. This mindset helps me stay rational when it fails, and makes the collaboration with AI far more effective and enjoyable.

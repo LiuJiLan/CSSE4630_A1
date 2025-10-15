@@ -43,6 +43,7 @@ object FlowSensitiveAnalysis {
           //case Analysis.reaching => new ReachingDefAnalysisSimpleSolver(typedCfg.left.get) <--- Complete here
           case Analysis.constprop => new ConstantPropagationAnalysis.Intraprocedural.SimpleSolver(typedCfg.left.get)
           case Analysis.ownership => new OwnershipAnalysis(typedCfg.left.get)
+          case Analysis.borrow => new BorrowAnalysis(typedCfg.left.get)
           case _ => throw new RuntimeException(s"Unsupported solver option `$options` for the analysis $kind")
         })
       case AnalysisOption.`wl` =>
@@ -167,6 +168,6 @@ object FlowSensitiveAnalysis {
     * A flow sensitive analysis kind
     */
   object Analysis extends Enumeration {
-    val sign, livevars, available, vbusy, reaching, constprop, interval, copyconstprop, uninitvars, taint, ownership = Value
+    val sign, livevars, available, vbusy, reaching, constprop, interval, copyconstprop, uninitvars, taint, ownership, borrow = Value
   }
 }

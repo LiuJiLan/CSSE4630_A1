@@ -1,63 +1,46 @@
 package tip.lattices
 
-import tip.ast.AIdentifier
+import tip.lattices.FlatLattice
 
+/**
+ * Enumeration for ownership elements.
+ * These represent the possible ownership statuses of variables.
+ */
 object OwnershipElement extends Enumeration {
-  val STACK, OWNS, DISOWNS, BORROWED, TOP = Value
+  val Stack, Owns, DisOwns = Value
 }
 
 /**
-  * Ownership lattice for Part 4 (Borrow Analysis).
-  * Left  : FlatLattice[OwnershipElement.Value]
-  * Right : PowersetLattice[AIdentifier]
-  */
-object OwnershipLattice
-  extends PairLattice(
-    new FlatLattice[OwnershipElement.Value],
-    new PowersetLattice[AIdentifier]
-  ) {
+ * The Ownership Lattice.
+ *
+ * Flat lattice:
+ *          Top
+ *        /  |  \
+ *     Stack Owns DisOwns
+ *        \  |  /
+ *          Bot
+ *
+ * This lattice tracks whether a variable:
+ *  - Stack: holds a stack value (non-pointer, e.g., int)
+ *  - Owns: uniquely owns a heap-allocated value
+ *  - DisOwns: points to a heap-allocated value, but is *not* the owner
+ */
+object OwnershipLattice extends FlatLattice[OwnershipElement.Value] {
 
   import OwnershipElement._
 
-  type Status    = OwnershipElement.Value
-  type BorrowSet = Set[AIdentifier]
+  /** Map used for lookup convenience if needed */
+  private val ownershipValues: Map[Element, Int] =
+    Map(Bot -> 0, FlatEl(Stack) -> 1, FlatEl(DisOwns) -> 2, FlatEl(Owns) -> 3, Top -> 4)
 
-  /** Construct a pair element (status, borrowers) */
-  def make(status: Status, borrowers: BorrowSet): Element = {
-    val leftPart: sublattice1.Element  = sublattice1.wrap(status)
-    val rightPart: sublattice2.Element = borrowers.asInstanceOf[sublattice2.Element]
-    (leftPart, rightPart)
-  }
+  /** Evaluation helper: used by OwnershipAnalysis.eval */
+  def evalAlloc(): Element = FlatEl(Owns)
 
-  /** Common lattice elements */
-  val bot: Element      = bottom
-  val stack: Element    = make(STACK, Set.empty)
-  val owns: Element     = make(OWNS, Set.empty)
-  val disowns: Element  = make(DISOWNS, Set.empty)
-  val borrowed: Element = make(BORROWED, Set.empty)
+  /** Evaluation helper: for constants and non-pointer expressions */
+  def evalStack(): Element = FlatEl(Stack)
 
-  /** Extract status from the left part */
-  def statusOf(e: Element): Option[Status] = e._1 match {
-    case sublattice1.FlatEl(s) => Some(s)
-    case _                     => None
-  }
-
-  /** Extract borrower set from the right part */
-  def borrowersOf(e: Element): BorrowSet =
-    e._2.asInstanceOf[BorrowSet]
-
-  /** Replace the status part */
-  def withStatus(e: Element, s: Status): Element = {
-    val newLeft: sublattice1.Element = sublattice1.wrap(s)
-    (newLeft, e._2)
-  }
-
-  /** Replace the borrower set */
-  def withBorrowers(e: Element, bs: BorrowSet): Element = {
-    val newRight: sublattice2.Element = bs.asInstanceOf[sublattice2.Element]
-    (e._1, newRight)
-  }
-
-  override def toString: String =
-    "OwnershipLattice(Flat(Status), Powerset(Identifiers))"
+  /** Helper predicates for dereference checks */
+  def isDefinitelyOwner(e: Element): Boolean = e == FlatEl(Owns)
+  def isDefinitelyNotOwner(e: Element): Boolean = e == FlatEl(Stack) || e == FlatEl(DisOwns)
+  def isMaybeOwner(e: Element): Boolean = e == Top
 }

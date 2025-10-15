@@ -14,8 +14,8 @@ import scala.collection.immutable.Set
   *
   * Status ∈ {STACK, OWNS, DISOWNS, BORROWED, TOP}
   * Pair element: (Status, Set[AIdentifier])
-  *   - if OWNS:   set is borrowers of the owner
-  *   - if BORROWED: set are possible owners (ŷ)
+  *   - if OWNS:     set = borrowers of the owner
+  *   - if BORROWED: set = possible owners (ŷ)
   */
 class BorrowAnalysis(cfg: ProgramCfg)(implicit declData: DeclarationData)
   extends FlowSensitiveAnalysis(true) {
@@ -39,7 +39,6 @@ class BorrowAnalysis(cfg: ProgramCfg)(implicit declData: DeclarationData)
   private def msgErr(l: Loc, t: String)  = msgs.message(msgs.Reason.OwnershipError, l, t)
   private def msgWarn(l: Loc, t: String) = msgs.message(msgs.Reason.OwnershipWarning, l, t)
 
-  /** 打印纯变量名，避免 c[6:11] 形式 */
   private def idName(id: AIdentifier): String = id.name
 
   private val vStack    = make(STACK, Set())
@@ -47,16 +46,11 @@ class BorrowAnalysis(cfg: ProgramCfg)(implicit declData: DeclarationData)
   private val vDisowns  = make(DISOWNS, Set())
   private val vBorrowed = make(BORROWED, Set())
 
-  /**
-    * Rule 9: eval expression & issue errors for invalid * uses.
-    * 允许：*y 当 y::OWNS；**z 当 z::BORROWED；其余 *... 报错。
-    */
+  // ---------- eval (Rule 9 checks inside expressions) ----------
   def eval(e: AExpr, env: statelattice.Element): Element = e match {
-    case id: AIdentifier =>
-      read(id, env)
+    case id: AIdentifier => read(id, env)
 
-    case _: AAlloc =>
-      vOwns
+    case _: AAlloc       => vOwns
 
     case AUnaryOp(DerefOp, inner, loc) =>
       inner match {
@@ -68,7 +62,7 @@ class BorrowAnalysis(cfg: ProgramCfg)(implicit declData: DeclarationData)
           }
           vStack
 
-        // **z  (inner is *z)
+        // **z
         case AUnaryOp(DerefOp, z: AIdentifier, _) =>
           statusOfV(read(z, env)) match {
             case Some(BORROWED) => msgNone(loc)
@@ -76,7 +70,7 @@ class BorrowAnalysis(cfg: ProgramCfg)(implicit declData: DeclarationData)
           }
           vStack
 
-        // other *ES: try to print *id form if possible
+        // other *ES
         case es =>
           es match {
             case ex: AIdentifier => msgErr(loc, s"ownership problem: *${idName(ex)}")
@@ -85,27 +79,22 @@ class BorrowAnalysis(cfg: ProgramCfg)(implicit declData: DeclarationData)
           vStack
       }
 
-    // binary ops: recurse for nested *..., result is STACK
     case ABinaryOp(_, left, right, _) =>
       eval(left, env); eval(right, env); vStack
 
-    // stack-ish
     case _: ANumber | _: AInput | _: ANull =>
       vStack
 
-    // records/fields: recurse conservatively
     case ARecord(fields, _) =>
       fields.foreach(f => eval(f.exp, env)); vStack
 
     case AFieldAccess(record, _, _) =>
       eval(record, env); vStack
 
-    // call expr: recurse into target and args
     case ACallFuncExpr(target, args, _) =>
       eval(target, env); args.foreach(a => eval(a, env)); vStack
 
-    case _ =>
-      vStack
+    case _ => vStack
   }
 
   def indep(n: CfgNode): Set[CfgNode] = n.pred.toSet
@@ -115,21 +104,14 @@ class BorrowAnalysis(cfg: ProgramCfg)(implicit declData: DeclarationData)
   def fun(x: lattice.Element) =
     domain.foldLeft(lattice.bottom)((m, a) => m + (a -> localTransfer(a, join(a, x))))
 
-  /**
-    * Local transfer:
-    *   Rule 1 (vars)
-    *   Rule 0 (release on LHS)
-    *   Rules 2–6: x = y
-    *   Rule 7 & 8b: x = &y
-    *   Rule 9: x = E
-    */
+  // ---------- transfer ----------
   def localTransfer(n: CfgNode, s: statelattice.Element): statelattice.Element = n match {
     case r: CfgStmtNode =>
       NoCalls.assertContainsNode(r.data)
       NoRecords.assertContainsNode(r.data)
 
       r.data match {
-        // Rule 1: vars ...  → 初始化为 STACK（不是 ⊥）
+        // Rule 1: vars → init to STACK
         case v: AVarStmt =>
           s ++ v.declIds.map(_ -> make(STACK, Set()))
 
@@ -138,7 +120,7 @@ class BorrowAnalysis(cfg: ProgramCfg)(implicit declData: DeclarationData)
           val xDecl = declData(xId)
           val xVal  = s(xDecl)
 
-          // Rule 0: 赋值前释放 x 的历史借用
+          // Rule 0: release previous borrows on x
           val s0 = statusOfV(xVal) match {
             case Some(BORROWED) =>
               setOfV(xVal).foldLeft(s) { (acc, oId) =>
@@ -162,21 +144,19 @@ class BorrowAnalysis(cfg: ProgramCfg)(implicit declData: DeclarationData)
               val ySet  = setOfV(yVal)
 
               ySt match {
-                // y::STACK → x::STACK
                 case Some(STACK) =>
                   write(xDecl, make(STACK, Set()), s0)
 
-                // y::OWNS & y_b=∅ → x::OWNS, y::DISOWNS{x}
                 case Some(OWNS) if ySet.isEmpty =>
                   val s1 = write(xDecl, make(OWNS, Set()), s0)
                   write(yDecl, make(DISOWNS, Set(xId)), s1)
 
-                // y::OWNS & y_b≠∅ → error; 直接返回该分支结果，避免额外噪声
                 case Some(OWNS) =>
-                  msgErr(loc, s"cannot move while borrowed: ${idName(yId)}")
+                  // Rule 3: cannot move while borrowed (use yId.loc for accurate column)
+                  msgErr(yId.loc, s"cannot move while borrowed: ${idName(yId)}")
+                  // continue analysis by copying y status to x (per spec "recover after errors")
                   write(xDecl, yVal, s0)
 
-                // y::BORROWED → x::BORROWED(y_b)，仅把 x 加入“当前确认为 OWNS 的 owner”的 borrowers
                 case Some(BORROWED) =>
                   val xNew = make(BORROWED, ySet)
                   val s1   = write(xDecl, xNew, s0)
@@ -188,40 +168,48 @@ class BorrowAnalysis(cfg: ProgramCfg)(implicit declData: DeclarationData)
                     else acc
                   }
 
-                // y::DISOWNS → error
                 case Some(DISOWNS) =>
-                  msgErr(loc, s"cannot move twice: ${idName(yId)}")
+                  // Rule 5: cannot move twice (use yId.loc)
+                  msgErr(yId.loc, s"cannot move twice: ${idName(yId)}")
                   write(xDecl, yVal, s0)
 
-                // y::TOP/⊥ → warning
                 case _ =>
-                  msgWarn(loc, s"possible ownership problem: ${idName(yId)}")
+                  // Rule 6: TOP → warning (use yId.loc)
+                  msgWarn(yId.loc, s"possible ownership problem: ${idName(yId)}")
                   write(xDecl, yVal, s0)
               }
 
             // Rule 7 & 8b: x = &y
+            //   y::OWNS            → x = (BORROWED,{y}), yb += x
+            //   y::DISOWNS         → error "borrow of moved value: y"
+            //   others (STACK/TOP) → allow (avoid premature false positives)
             case AVarRef(y: AIdentifier, _) =>
               val yDecl = declData(y)
               val yVal  = s0(yDecl)
               statusOfV(yVal) match {
-                // 允许对 OWNS 取址（记录 borrower），也允许对 STACK 取址（但不记录到 y.borrowers）
                 case Some(OWNS) =>
                   val xNew = make(BORROWED, Set(y))
                   val yNew = withBorrowers(yVal, setOfV(yVal) + xId)
                   write(yDecl, yNew, write(xDecl, xNew, s0))
-                case Some(STACK) =>
+
+                case Some(DISOWNS) =>
+                  // 8b precise: borrow of moved value (use y.loc for accurate column)
+                  msgErr(y.loc, s"borrow of moved value: ${idName(y)}")
+                  // keep analysis going by giving x a BORROWED-from-y abstract value
                   val xNew = make(BORROWED, Set(y))
                   write(xDecl, xNew, s0)
+
                 case _ =>
-                  msgErr(loc, s"borrow of moved value: ${idName(y)}")
+                  // For TOP/STACK, do not raise early error (tests expect silence here)
+                  msgNone(y.loc)
                   val xNew = make(BORROWED, Set(y))
                   write(xDecl, xNew, s0)
               }
 
-            // Rule 9: x = E
+            // Rule 9: x = E —— write eval(E)
             case e: AExpr =>
-              eval(e, s0)
-              write(xDecl, vStack, s0)
+              val v = eval(e, s0)
+              write(xDecl, v, s0)
 
             case _ => s0
           }

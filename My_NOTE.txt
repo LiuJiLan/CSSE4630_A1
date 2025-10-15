@@ -1,0 +1,2 @@
+.\tip.bat -ownership tests/ownership1.tip
+.\tip.bat -ownership tests/ownership2.tip
